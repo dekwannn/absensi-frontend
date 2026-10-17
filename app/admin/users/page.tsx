@@ -66,7 +66,7 @@ function UsersContent() {
     <div className="min-h-screen bg-slate-50 pb-24">
 
       {/* Header */}
-      <header className="bg-slate-800 text-white pt-8 pb-14 px-6 rounded-b-[2.5rem] shadow-lg overflow-hidden">
+      <header className="relative bg-slate-800 text-white pt-8 pb-14 px-6 rounded-b-[2.5rem] shadow-lg overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-xl" />
         <div className="flex items-center gap-3 relative z-10">
           <Link href="/admin/dashboard" className="p-2 bg-white/10 rounded-full active:scale-95 transition">

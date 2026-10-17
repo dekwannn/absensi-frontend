@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
 import { witaMonthStr, formatTime as formatWitaTime, formatDate as formatCalendarDate } from "@/lib/time";
-import { ArrowLeft, RefreshCw, CalendarDays, Clock, Search } from "lucide-react";
+import { ArrowLeft, RefreshCw, CalendarDays, Clock, Search, MapPin } from "lucide-react";
 
 interface AttendanceRecord {
   id: string;
@@ -14,7 +14,50 @@ interface AttendanceRecord {
   check_in?: string;
   check_out?: string;
   status: string;
-  distance?: number;
+  // lokasi check-in
+  latitude?: number | null;
+  longitude?: number | null;
+  distance?: number | null;
+  // lokasi check-out
+  checkout_latitude?: number | null;
+  checkout_longitude?: number | null;
+  checkout_distance?: number | null;
+}
+
+interface Place {
+  lat: number;
+  lng: number;
+  distance?: number | null;
+}
+
+const toPlace = (lat?: number | null, lng?: number | null, distance?: number | null): Place | null =>
+  lat != null && lng != null ? { lat, lng, distance } : null;
+
+// Record lama (sebelum ada field checkout_*) menimpa lokasi check-in saat check-out,
+// jadi latitude/longitude di record itu sebenarnya lokasi check-out.
+function getPlaces(r: AttendanceRecord) {
+  const legacy = !!r.check_out && r.checkout_latitude == null;
+  const stored = toPlace(r.latitude, r.longitude, r.distance);
+  return {
+    checkIn:  legacy ? null : stored,
+    checkOut: legacy ? stored : toPlace(r.checkout_latitude, r.checkout_longitude, r.checkout_distance),
+  };
+}
+
+function PlaceLink({ place }: { place: Place | null }) {
+  if (!place) return null;
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${place.lat},${place.lng}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Buka di Google Maps"
+      className="mt-0.5 flex items-center gap-1 text-xs text-blue-500 hover:underline"
+    >
+      <MapPin size={11} />
+      {place.distance != null ? `${Math.round(place.distance)} m dari kantor` : "Lihat peta"}
+    </a>
+  );
 }
 
 function AttendanceContent() {
@@ -47,7 +90,7 @@ function AttendanceContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
-      <header className="bg-slate-800 text-white pt-8 pb-14 px-6 rounded-b-[2.5rem] shadow-lg  overflow-hidden">
+      <header className="relative bg-slate-800 text-white pt-8 pb-14 px-6 rounded-b-[2.5rem] shadow-lg overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-xl" />
         <div className="flex items-center gap-3 relative z-10">
           <Link href="/admin/dashboard" className="p-2 bg-white/10 rounded-full active:scale-95 transition">
@@ -105,6 +148,7 @@ function AttendanceContent() {
             {filtered.map(record => {
               const isComplete = record.check_in && record.check_out;
               const hasIn = !!record.check_in;
+              const places = getPlaces(record);
               return (
                 <div key={record.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
                   <div className="flex items-center justify-between mb-2">
@@ -129,6 +173,7 @@ function AttendanceContent() {
                       <div>
                         <p className="text-xs text-slate-400">Masuk</p>
                         <p className="font-semibold text-sm text-slate-700">{formatTime(record.check_in)}</p>
+                        <PlaceLink place={places.checkIn} />
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -138,14 +183,9 @@ function AttendanceContent() {
                       <div>
                         <p className="text-xs text-slate-400">Keluar</p>
                         <p className="font-semibold text-sm text-slate-700">{formatTime(record.check_out)}</p>
+                        <PlaceLink place={places.checkOut} />
                       </div>
                     </div>
-                    {record.distance !== undefined && (
-                      <div className="ml-auto text-right">
-                        <p className="text-xs text-slate-400">Jarak</p>
-                        <p className="font-semibold text-sm text-slate-700">{Math.round(record.distance)}m</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               );
