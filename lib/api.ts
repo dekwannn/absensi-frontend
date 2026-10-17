@@ -1,6 +1,12 @@
 import axios from "axios";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://2b5b-2001-448a-5010-216-75c6-7829-dfa8-1dbe.ngrok-free.app/api/v1";
+// Atur alamat backend lewat NEXT_PUBLIC_API_URL (.env.local / env Vercel).
+// Fallback hanya untuk development lokal.
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+if (!process.env.NEXT_PUBLIC_API_URL && typeof window !== "undefined") {
+  console.warn(`NEXT_PUBLIC_API_URL belum diatur, memakai ${BASE_URL}`);
+}
 
 export const api = axios.create({
   baseURL: BASE_URL,

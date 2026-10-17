@@ -13,6 +13,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import AuthGuard from "@/components/AuthGuard";
 import SwipeButton from "@/components/SwipeButton";
 import NotificationBanner from "@/components/NotificationBanner";
+import {
+  witaDateStr, witaMinutesNow, hmToMinutes, shiftDateStr, weekdayOf, formatDate, formatTime,
+} from "@/lib/time";
 
 interface Attendance {
   id?: string | number;
@@ -42,10 +45,11 @@ interface DateItem {
   isFuture: boolean;
 }
 
+// Jadwal dibandingkan dengan jam WITA per menit (sama seperti backend), bukan jam HP
 function getCheckinWindow(schedule: Schedule | null) {
   if (!schedule) return { canCheckin: false, status: "before" as const, msg: "" };
-  const now = new Date();
-  const toTime = (s: string) => { const [h, m] = s.split(":").map(Number); const d = new Date(now); d.setHours(h, m, 0, 0); return d; };
+  const now = witaMinutesNow();
+  const toTime = hmToMinutes;
   if (now < toTime(schedule.checkin_open))     return { canCheckin: false, status: "before" as const,  msg: `Absen dibuka pukul ${schedule.checkin_open}` };
   if (now > toTime(schedule.checkin_close))    return { canCheckin: false, status: "closed" as const,  msg: `Absen sudah ditutup sejak ${schedule.checkin_close}` };
   if (now <= toTime(schedule.checkin_on_time)) return { canCheckin: true,  status: "on_time" as const, msg: `Tepat waktu sampai ${schedule.checkin_on_time}` };
@@ -54,8 +58,8 @@ function getCheckinWindow(schedule: Schedule | null) {
 
 function getCheckoutWindow(schedule: Schedule | null) {
   if (!schedule) return { canCheckout: false, status: "before" as const, msg: "" };
-  const now = new Date();
-  const toTime = (s: string) => { const [h, m] = s.split(":").map(Number); const d = new Date(now); d.setHours(h, m, 0, 0); return d; };
+  const now = witaMinutesNow();
+  const toTime = hmToMinutes;
   if (now < toTime(schedule.checkout_open))    return { canCheckout: false, status: "before" as const, msg: `Absen keluar dibuka pukul ${schedule.checkout_open}` };
   if (now > toTime(schedule.checkout_close))   return { canCheckout: false, status: "closed" as const, msg: `Absen keluar ditutup sejak ${schedule.checkout_close}` };
   if (now >= toTime(schedule.checkout_normal)) return { canCheckout: true,  status: "normal" as const, msg: `Pulang normal mulai ${schedule.checkout_normal}` };
@@ -77,17 +81,16 @@ function UserDashboardContent() {
   const [showSchedule, setShowSchedule]     = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
 
-  // ── Bangun 7 hari ─────────────────────────────────────
+  // ── Bangun 7 hari (tanggal WITA) ──────────────────────
   useEffect(() => {
-    const today = new Date();
+    const today = witaDateStr();
     const days  = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
     const list: DateItem[] = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() + (i - 3));
+      const dateStr = shiftDateStr(today, i - 3);
       return {
-        day:      days[d.getDay()],
-        date:     d.getDate().toString().padStart(2, "0"),
-        dateStr:  d.toISOString().slice(0, 10),
+        day:      days[weekdayOf(dateStr)],
+        date:     dateStr.slice(8, 10),
+        dateStr,
         isToday:  i === 3,
         isFuture: i > 3,
       };
@@ -140,14 +143,9 @@ function UserDashboardContent() {
   const recentHistory  = allHistory.slice(0, 5);
   const isViewingToday = selectedDate?.isToday ?? true;
 
-  const formatTime = (t?: string) =>
-    !t ? "--:--" : new Date(t).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-
   const cardDateLabel = () => {
     if (!selectedDate || isViewingToday) return "Absensi Hari ini";
-    return new Date(selectedDate.dateStr + "T00:00:00").toLocaleDateString("id-ID", {
-      weekday: "long", day: "numeric", month: "long",
-    });
+    return formatDate(selectedDate.dateStr, { weekday: "long", day: "numeric", month: "long" });
   };
 
   const hasCheckedIn   = !!attendance?.check_in;
@@ -336,8 +334,8 @@ function UserDashboardContent() {
                 const isComplete = item.check_in && item.check_out;
                 const hasIn      = !!item.check_in;
                 const isActive   = selectedDate?.dateStr === item.date;
-                const fmt     = (t?: string) => t ? new Date(t).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "--:--";
-                const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" });
+                const fmt     = (t?: string) => formatTime(t);
+                const fmtDate = (d: string) => formatDate(d, { weekday: "short", day: "numeric", month: "short" });
 
                 return (
                   <button

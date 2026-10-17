@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthGuard from "@/components/AuthGuard";
+import { witaDateStr, witaMonthStr, formatTime as formatWitaTime, formatNowDate } from "@/lib/time";
 import {
   ScanFace, UserPlus, CalendarDays, LogOut,
   Users, ChevronRight, ClipboardList,
@@ -49,8 +50,8 @@ function AdminDashboardContent() {
     setMounted(true);
     const update = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }));
-      setDate(now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
+      setTime(formatWitaTime(now.toISOString()));
+      setDate(formatNowDate(now, { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
     };
     update();
     const interval = setInterval(update, 1000);
@@ -66,8 +67,9 @@ function AdminDashboardContent() {
     
     try {
       setLoadingStats(true);
-      const today = new Date().toISOString().slice(0, 10);
-      const thisMonth = new Date().toISOString().slice(0, 7);
+      // tanggal WITA — toISOString() memberi tanggal UTC, yang sebelum 08:00 WITA masih "kemarin"
+      const today = witaDateStr();
+      const thisMonth = witaMonthStr();
 
       const [usersRes, attendanceRes] = await Promise.all([
         api.get("/users", { signal: controller.signal }),
@@ -133,18 +135,7 @@ function AdminDashboardContent() {
     };
   }, [mounted, fetchStats]);
 
-  const formatTime = (t?: string | null) => {
-    if (!t) return "-";
-    try {
-      return new Date(t).toLocaleTimeString("id-ID", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Asia/Makassar",
-      });
-    } catch (error) {
-      return "-";
-    }
-  };
+  const formatTime = (t?: string | null) => formatWitaTime(t, "-");
 
   // Generate unique key untuk attendance record
   const getAttendanceKey = (a: AttendanceRecord, index: number) => {

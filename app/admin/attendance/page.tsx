@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
+import { witaMonthStr, formatTime as formatWitaTime, formatDate as formatCalendarDate } from "@/lib/time";
 import { ArrowLeft, RefreshCw, CalendarDays, Clock, Search } from "lucide-react";
 
 interface AttendanceRecord {
@@ -19,7 +20,7 @@ interface AttendanceRecord {
 function AttendanceContent() {
   const [data, setData] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(witaMonthStr());
   const [search, setSearch] = useState("");
 
   useEffect(() => { fetchData(); }, []);
@@ -36,14 +37,9 @@ function AttendanceContent() {
     }
   };
 
-  const formatTime = (t?: string) => {
-    if (!t) return "-";
-    return new Date(t).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-  };
+  const formatTime = (t?: string) => formatWitaTime(t, "-");
 
-  const formatDate = (d: string) => {
-    return new Date(d).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" });
-  };
+  const formatDate = (d: string) => formatCalendarDate(d, { weekday: "short", day: "numeric", month: "short" });
 
   const filtered = data
     .filter(a => a.date?.startsWith(month))

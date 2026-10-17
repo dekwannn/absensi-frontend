@@ -38,9 +38,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem("user");
     if (storedToken && storedUser) {
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        localStorage.removeItem("user");
+      }
     }
     setLoading(false);
+
+    // Data di localStorage bisa basi (mis. admin baru mendaftarkan wajah atau
+    // mengubah role) — ambil data terbaru dari server di latar belakang.
+    if (storedToken) {
+      api.get("/auth/me")
+        .then((res) => {
+          setUser(res.data);
+          localStorage.setItem("user", JSON.stringify(res.data));
+        })
+        .catch((err) => {
+          // 401 sudah ditangani interceptor; 403/404 = akun dinonaktifkan/dihapus
+          const status = err.response?.status;
+          if (status === 403 || status === 404) {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("user");
+            setToken(null);
+            setUser(null);
+          }
+        });
+    }
   }, []);
 
   const login = async (username: string, password: string) => {

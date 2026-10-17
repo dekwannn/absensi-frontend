@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthGuard from "@/components/AuthGuard";
+import { witaMonthStr, formatTime as formatWitaTime, formatDate as formatCalendarDate } from "@/lib/time";
 import { CalendarDays, ArrowLeft, RefreshCw, LogIn, LogOut, TrendingUp, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
@@ -22,7 +23,7 @@ function HistoryContent() {
   const { user } = useAuth();
   const [data, setData] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(witaMonthStr());
 
   useEffect(() => { fetchData(); }, []);
 
@@ -38,14 +39,9 @@ function HistoryContent() {
     }
   };
 
-  const formatTime = (t?: string) => {
-    if (!t) return "--:--";
-    return new Date(t).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-  };
+  const formatTime = (t?: string) => formatWitaTime(t);
 
-  const formatDate = (d: string) => {
-    return new Date(d).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" });
-  };
+  const formatDate = (d: string) => formatCalendarDate(d, { weekday: "short", day: "numeric", month: "short" });
 
   const filtered     = data.filter(i => i.date.startsWith(month));
   const totalHadir   = filtered.length;
@@ -58,7 +54,7 @@ function HistoryContent() {
   const onTimeRate     = totalHadir > 0 ? Math.round((totalOnTime / totalHadir) * 100) : 0;
 
   // Nama bulan untuk display
-  const monthName = new Date(month + "-01").toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+  const monthName = formatCalendarDate(month + "-01", { month: "long", year: "numeric" });
 
   return (
     <div className="min-h-screen bg-[#f0f4ff] pb-20">

@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { base64ToFile } from '@/utils/imageConverter';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, notFound } from 'next/navigation';
+import { formatTime } from '@/lib/time';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthGuard from '@/components/AuthGuard';
 import {
@@ -254,11 +255,11 @@ function AttendanceContent() {
       formData.append('longitude', location.lng.toString());
 
       const res = await api.post(`/${type}`, formData);
-      const now = new Date();
       setStatus({
         type: 'success',
         msg:  `Halo ${res.data.user}, ${res.data.message}`,
-        time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        // jam dari server (WITA), bukan jam HP
+        time: formatTime(res.data.time || new Date().toISOString(), '--:--', true)
       });
       setShowSuccessAnimation(true);
 
@@ -637,6 +638,11 @@ function AttendanceContent() {
   );
 }
 
+const ATTENDANCE_TYPES = ['check-in', 'check-out'];
+
 export default function AttendancePage() {
+  // hanya /attendance/check-in dan /attendance/check-out yang valid
+  const { type } = useParams<{ type: string }>();
+  if (!ATTENDANCE_TYPES.includes(type)) notFound();
   return <AuthGuard><AttendanceContent /></AuthGuard>;
 }
