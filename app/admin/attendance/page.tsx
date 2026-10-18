@@ -5,7 +5,9 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
 import { witaMonthStr, formatTime as formatWitaTime, formatDate as formatCalendarDate } from "@/lib/time";
-import { ArrowLeft, RefreshCw, CalendarDays, Clock, MapPin } from "lucide-react";
+import { ArrowLeft, RefreshCw, CalendarDays, Clock, MapPin, X } from "lucide-react";
+import LocationMap from "@/components/LocationMap";
+import { distanceMeters, formatDistance, type Office } from "@/lib/geo";
 
 interface AttendanceRecord {
   id: string;
@@ -44,19 +46,50 @@ function getPlaces(r: AttendanceRecord) {
   };
 }
 
-function PlaceLink({ place }: { place: Place | null }) {
+const googleMapsUrl = (p: Place) => `https://www.google.com/maps?q=${p.lat},${p.lng}`;
+
+// Buka peta kecil di halaman ini; bila data kantor belum ada, langsung ke Google Maps
+function PlaceLink({ place, onOpen }: { place: Place | null; onOpen?: (place: Place) => void }) {
   if (!place) return null;
+  const label = place.distance != null ? `${Math.round(place.distance)} m dari kantor` : "Lihat peta";
+  const className = "mt-0.5 flex items-center gap-1 text-xs text-blue-500 hover:underline";
+  if (onOpen) {
+    return (
+      <button type="button" onClick={() => onOpen(place)} title="Lihat di peta" className={className}>
+        <MapPin size={11} /> {label}
+      </button>
+    );
+  }
   return (
-    <a
-      href={`https://www.google.com/maps?q=${place.lat},${place.lng}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Buka di Google Maps"
-      className="mt-0.5 flex items-center gap-1 text-xs text-blue-500 hover:underline"
-    >
-      <MapPin size={11} />
-      {place.distance != null ? `${Math.round(place.distance)} m dari kantor` : "Lihat peta"}
+    <a href={googleMapsUrl(place)} target="_blank" rel="noopener noreferrer" title="Buka di Google Maps" className={className}>
+      <MapPin size={11} /> {label}
     </a>
+  );
+}
+
+function PlaceMapModal({ office, place, title, onClose }: { office: Office; place: Place; title: string; onClose: () => void }) {
+  const distance = distanceMeters(place.lat, place.lng, office.lat, office.lng);
+  const inside = distance <= office.radius;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <p className="font-bold text-sm text-slate-800">{title}</p>
+          <button type="button" onClick={onClose} aria-label="Tutup peta" className="p-1 rounded-full hover:bg-slate-100">
+            <X size={18} className="text-slate-500" />
+          </button>
+        </div>
+        <LocationMap office={office} point={{ lat: place.lat, lng: place.lng }} inside={inside} pointLabel={title} className="h-72 w-full" />
+        <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs">
+          <span className={inside ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+            {formatDistance(distance)} dari kantor {inside ? "(dalam radius)" : "(di luar radius)"}
+          </span>
+          <a href={googleMapsUrl(place)} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline shrink-0">
+            Google Maps
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -64,6 +97,17 @@ function AttendanceContent() {
   const [data, setData] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(witaMonthStr());
+  const [office, setOffice] = useState<Office | null>(null);
+  const [mapView, setMapView] = useState<{ place: Place; title: string } | null>(null);
+
+  useEffect(() => {
+    api.get("/attendance/office")
+      .then((res) => {
+        const d = res.data.data;
+        setOffice({ lat: d.latitude, lng: d.longitude, radius: d.radius });
+      })
+      .catch(() => { /* tanpa data kantor, link lokasi membuka Google Maps */ });
+  }, []);
 
   // ambil hanya data bulan yang dipilih (filter di backend), muat ulang saat bulan diganti
   const fetchData = useCallback(async () => {
@@ -172,7 +216,7 @@ function AttendanceContent() {
                       <div>
                         <p className="text-xs text-slate-400">Masuk</p>
                         <p className="font-semibold text-sm text-slate-700">{formatTime(record.check_in)}</p>
-                        <PlaceLink place={places.checkIn} />
+                        <PlaceLink place={places.checkIn} onOpen={office ? (p) => setMapView({ place: p, title: `Lokasi masuk · ${formatDate(record.date)}` }) : undefined} />
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -182,7 +226,7 @@ function AttendanceContent() {
                       <div>
                         <p className="text-xs text-slate-400">Keluar</p>
                         <p className="font-semibold text-sm text-slate-700">{formatTime(record.check_out)}</p>
-                        <PlaceLink place={places.checkOut} />
+                        <PlaceLink place={places.checkOut} onOpen={office ? (p) => setMapView({ place: p, title: `Lokasi keluar · ${formatDate(record.date)}` }) : undefined} />
                       </div>
                     </div>
                   </div>
@@ -192,6 +236,10 @@ function AttendanceContent() {
           </div>
         )}
       </main>
+
+      {mapView && office && (
+        <PlaceMapModal office={office} place={mapView.place} title={mapView.title} onClose={() => setMapView(null)} />
+      )}
     </div>
   );
 }

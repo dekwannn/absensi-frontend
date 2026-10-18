@@ -6,6 +6,8 @@ import { base64ToFile } from '@/utils/imageConverter';
 import { useRouter, useParams, notFound } from 'next/navigation';
 import { formatTime } from '@/lib/time';
 import { getErrorCode, getErrorDetail, isNetworkError } from '@/lib/errors';
+import { distanceMeters, formatDistance, type Office } from '@/lib/geo';
+import LocationMap from '@/components/LocationMap';
 import AuthGuard from '@/components/AuthGuard';
 import {
   ChevronLeft, MapPin, AlertCircle, CheckCircle2, RefreshCw,
@@ -120,7 +122,8 @@ function AttendanceContent() {
   const [loading, setLoading]           = useState(false);
   const [status, setStatus]             = useState<{ type: 'success' | 'error' | ''; msg: string; time?: string }>({ type: '', msg: '' });
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-  const [location, setLocation]         = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation]         = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [office, setOffice]             = useState<Office | null>(null);
   const [locationName, setLocationName] = useState<string>("");
   const [loadingLocation, setLoadingLocation] = useState(true);
 
@@ -151,14 +154,23 @@ function AttendanceContent() {
       toastError("GPS Tidak Tersedia", "Browser kamu tidak mendukung geolokasi.", <MapPinOff size={16} />);
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    // Pantau posisi terus-menerus agar peta & jarak ikut bergerak saat user berjalan.
+    // Nama lokasi cukup diambil sekali, dan toast error hanya ditampilkan sekali.
+    let named = false;
+    let warned = false;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
         setLocation(coords);
-        await getLocationName(coords.lat, coords.lng);
+        if (!named) {
+          named = true;
+          getLocationName(coords.lat, coords.lng);
+        }
       },
       (err) => {
         setLoadingLocation(false);
+        if (warned) return;
+        warned = true;
         if (err.code === 1)
           toastError("Izin Lokasi Ditolak", "Harap aktifkan izin GPS di pengaturan browser kamu.", <MapPinOff size={16} />);
         else if (err.code === 2)
@@ -166,9 +178,20 @@ function AttendanceContent() {
         else
           toastError("Gagal Ambil Lokasi", "Terjadi kesalahan saat mengambil koordinat GPS.", <MapPinOff size={16} />);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, maximumAge: 5000 }
     );
+    return () => navigator.geolocation.clearWatch(watchId);
   }, [toastError, toastWarning]);
+
+  // ── Titik kantor & radius untuk peta ──────────────────
+  useEffect(() => {
+    api.get('/attendance/office')
+      .then((res) => {
+        const d = res.data.data;
+        setOffice({ lat: d.latitude, lng: d.longitude, radius: d.radius });
+      })
+      .catch(() => { /* peta tidak ditampilkan; validasi lokasi tetap di server */ });
+  }, []);
 
   const getLocationName = async (lat: number, lng: number) => {
     try {
@@ -419,7 +442,11 @@ function AttendanceContent() {
   const iconBg         = isCheckIn ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600";
   const btnGradient    = isCheckIn ? "from-blue-600 to-blue-500 shadow-blue-200" : "from-orange-500 to-amber-500 shadow-orange-200";
   const submitGradient = isCheckIn ? "from-green-600 to-emerald-500 shadow-green-200" : "from-amber-600 to-orange-500 shadow-amber-200";
-  const canSubmit = !loading && !!image && !!location;
+  // Jarak ke kantor (tampilan saja; server tetap memvalidasi ulang)
+  const distance      = office && location ? distanceMeters(location.lat, location.lng, office.lat, office.lng) : null;
+  const outsideRadius = !!office && distance !== null && distance > office.radius;
+  const metersToGo    = office && distance !== null ? distance - office.radius : 0;
+  const canSubmit = !loading && !!image && !!location && !outsideRadius;
 
   return (
     <div className="min-h-screen bg-[#f0f4ff] font-sans pb-10">
@@ -500,6 +527,34 @@ function AttendanceContent() {
         </div>
 
         <main className="px-5 mt-4 space-y-4">
+
+          {/* ── PETA LOKASI ──────────────────────────────── */}
+          {office && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden fade-up-2">
+              <LocationMap office={office} point={location} inside={!outsideRadius} className="h-48 w-full" />
+              <div className="px-4 py-3 flex items-center justify-between gap-3">
+                {distance === null ? (
+                  <p className="text-slate-400 text-xs font-semibold">Menunggu posisi GPS...</p>
+                ) : outsideRadius ? (
+                  <p className="text-red-600 text-xs font-bold flex items-center gap-1.5">
+                    <MapPinOff size={14} /> Di luar radius, {formatDistance(metersToGo)} lagi
+                  </p>
+                ) : (
+                  <p className="text-green-600 text-xs font-bold flex items-center gap-1.5">
+                    <CheckCircle2 size={14} /> Dalam radius kantor
+                  </p>
+                )}
+                {distance !== null && (
+                  <span className="text-slate-500 text-xs shrink-0">{formatDistance(distance)} dari kantor</span>
+                )}
+              </div>
+              {location && location.accuracy > 50 && (
+                <p className="px-4 pb-3 -mt-1 text-amber-600 text-[11px] leading-snug">
+                  Akurasi GPS &plusmn;{Math.round(location.accuracy)} m. Coba dekat jendela atau di area terbuka agar lebih tepat.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* ── FOTO CARD ────────────────────────────────── */}
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden fade-up-2">
@@ -601,6 +656,8 @@ function AttendanceContent() {
                 <><Send size={18} /> Kirim {pageTitle}</>
               ) : !image ? (
                 <><Camera size={18} /> Ambil Foto Dahulu</>
+              ) : outsideRadius ? (
+                <><MapPinOff size={18} /> Di Luar Radius Kantor</>
               ) : (
                 <><MapPin size={18} /> Menunggu Lokasi GPS...</>
               )}
@@ -609,6 +666,7 @@ function AttendanceContent() {
               <p className="text-center text-slate-400 text-xs mt-2">
                 {!image && !location ? "Ambil foto & tunggu GPS aktif"
                 : !image ? "Foto wajah belum diambil"
+                : outsideRadius ? `Mendekatlah ${formatDistance(metersToGo)} lagi ke area kantor`
                 : "Menunggu GPS..."}
               </p>
             )}
