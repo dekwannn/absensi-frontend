@@ -1,12 +1,9 @@
 import axios from "axios";
 
-// Atur alamat backend lewat NEXT_PUBLIC_API_URL (.env.local / env Vercel).
-// Fallback hanya untuk development lokal.
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-
-if (!process.env.NEXT_PUBLIC_API_URL && typeof window !== "undefined") {
-  console.warn(`NEXT_PUBLIC_API_URL belum diatur, memakai ${BASE_URL}`);
-}
+// Default "/api/v1": lewat proxy Next.js (lihat rewrites di next.config.ts),
+// jadi bisa dibuka dari laptop maupun HP di jaringan yang sama.
+// Isi NEXT_PUBLIC_API_URL dengan URL lengkap hanya bila ingin memanggil backend langsung.
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
 export const api = axios.create({
   baseURL: BASE_URL,
