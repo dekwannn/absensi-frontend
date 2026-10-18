@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import axios from "axios";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthGuard from "@/components/AuthGuard";
 import { witaDateStr, witaMonthStr, formatTime as formatWitaTime, formatNowDate } from "@/lib/time";
 import {
-  ScanFace, UserPlus, CalendarDays, LogOut,
+  ScanFace, CalendarDays, LogOut,
   Users, ChevronRight, ClipboardList,
   CheckCircle2, XCircle, Clock, TrendingUp
 } from "lucide-react";
@@ -32,7 +32,6 @@ interface AttendanceRecord {
 
 function AdminDashboardContent() {
   const { user, logout } = useAuth();
-  const router = useRouter();
   const [time, setTime] = useState("");
   const [date, setDate] = useState("");
   const [stats, setStats] = useState<StatsData>({
@@ -73,7 +72,8 @@ function AdminDashboardContent() {
 
       const [usersRes, attendanceRes] = await Promise.all([
         api.get("/users", { signal: controller.signal }),
-        api.get("/attendance", { signal: controller.signal }),
+        // cukup data bulan ini: dipakai untuk statistik hari ini & bulan ini
+        api.get("/attendance", { params: { month: thisMonth }, signal: controller.signal }),
       ]);
 
       // Validasi response
@@ -101,8 +101,8 @@ function AdminDashboardContent() {
       });
       
       setRecentAttendance(sortedRecords.slice(0, 5));
-    } catch (err: any) {
-      if (err.name !== 'CanceledError') {
+    } catch (err) {
+      if (!axios.isCancel(err)) {
         console.error("Error fetching stats:", err);
         // Set empty state on error
         setStats({

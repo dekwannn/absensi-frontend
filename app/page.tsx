@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorDetail } from "@/lib/errors";
 import { useAuth } from "@/contexts/AuthContext";
-import { Lock, Eye, EyeOff, AlertCircle, ScanFace, MapPin, AtSign } from "lucide-react";
+import { Lock, Eye, EyeOff, AlertCircle, ScanFace, AtSign } from "lucide-react";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -20,8 +21,8 @@ export default function LoginPage() {
     setError("");
     try {
       await login(identifier, password);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Login gagal. Periksa email/username dan password.");
+    } catch (err) {
+      setError(getErrorDetail(err, "Login gagal. Periksa email/username dan password."));
     } finally {
       setLoading(false);
     }

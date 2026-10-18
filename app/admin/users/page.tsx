@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getErrorDetail } from "@/lib/errors";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
 import {
   ArrowLeft, Plus, Search, Pencil, Trash2,
-  CheckCircle2, XCircle, ScanFace, RefreshCw, User
+  ScanFace, RefreshCw, User
 } from "lucide-react";
 
 interface UserData {
@@ -22,7 +22,6 @@ interface UserData {
 }
 
 function UsersContent() {
-  const router = useRouter();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -49,8 +48,8 @@ function UsersContent() {
       await api.delete(`/users/${id}`);
       setUsers(prev => prev.filter(u => u.id !== id));
       setDeleteConfirm(null);
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Gagal menghapus user.");
+    } catch (err) {
+      alert(getErrorDetail(err, "Gagal menghapus user."));
     } finally {
       setDeleting(false);
     }

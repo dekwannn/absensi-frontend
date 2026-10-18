@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthGuard from "@/components/AuthGuard";
@@ -25,19 +25,20 @@ function HistoryContent() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(witaMonthStr());
 
-  useEffect(() => { fetchData(); }, []);
-
-  const fetchData = async () => {
+  // ambil hanya data bulan yang dipilih (filter di backend), muat ulang saat bulan diganti
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get("/attendance/my-history");
+      const res = await api.get("/attendance/my-history", { params: { month } });
       setData(res.data.data || []);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [month]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const formatTime = (t?: string) => formatWitaTime(t);
 

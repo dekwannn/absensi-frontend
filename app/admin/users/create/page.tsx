@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getErrorDetail } from "@/lib/errors";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
 import { ArrowLeft, User, Lock, Mail, CreditCard, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
@@ -39,8 +40,8 @@ function CreateUserContent() {
       });
       setSuccess(true);
       setTimeout(() => router.push("/admin/users"), 1500);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Gagal membuat user.");
+    } catch (err) {
+      setError(getErrorDetail(err, "Gagal membuat user."));
     } finally {
       setLoading(false);
     }

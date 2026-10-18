@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
 import { witaMonthStr, formatTime as formatWitaTime, formatDate as formatCalendarDate } from "@/lib/time";
-import { ArrowLeft, RefreshCw, CalendarDays, Clock, Search, MapPin } from "lucide-react";
+import { ArrowLeft, RefreshCw, CalendarDays, Clock, MapPin } from "lucide-react";
 
 interface AttendanceRecord {
   id: string;
@@ -64,29 +64,28 @@ function AttendanceContent() {
   const [data, setData] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(witaMonthStr());
-  const [search, setSearch] = useState("");
 
-  useEffect(() => { fetchData(); }, []);
-
-  const fetchData = async () => {
+  // ambil hanya data bulan yang dipilih (filter di backend), muat ulang saat bulan diganti
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get("/attendance");
+      const res = await api.get("/attendance", { params: { month } });
       setData(res.data.data || []);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [month]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const formatTime = (t?: string) => formatWitaTime(t, "-");
 
   const formatDate = (d: string) => formatCalendarDate(d, { weekday: "short", day: "numeric", month: "short" });
 
   const filtered = data
-    .filter(a => a.date?.startsWith(month))
-    .filter(a => !search || a.user_id.includes(search));
+    .filter(a => a.date?.startsWith(month));
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">

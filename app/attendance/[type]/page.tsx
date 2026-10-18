@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { base64ToFile } from '@/utils/imageConverter';
 import { useRouter, useParams, notFound } from 'next/navigation';
 import { formatTime } from '@/lib/time';
-import { useAuth } from '@/contexts/AuthContext';
+import { getErrorCode, getErrorDetail, isNetworkError } from '@/lib/errors';
 import AuthGuard from '@/components/AuthGuard';
 import {
   ChevronLeft, MapPin, AlertCircle, CheckCircle2, RefreshCw,
@@ -102,7 +102,6 @@ function AlertDialog({ alert, onClose }: { alert: AlertData; onClose: () => void
 function AttendanceContent() {
   const router = useRouter();
   const params = useParams();
-  const { user } = useAuth();
 
   const type      = params.type as string;
   const isCheckIn = type === 'check-in';
@@ -116,7 +115,8 @@ function AttendanceContent() {
 
   const [image, setImage]               = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [stream, setStream]             = useState<MediaStream | null>(null);
+  // stream disimpan di ref agar cleanup selalu melihat stream yang aktif
+  const streamRef = useRef<MediaStream | null>(null);
   const [loading, setLoading]           = useState(false);
   const [status, setStatus]             = useState<{ type: 'success' | 'error' | ''; msg: string; time?: string }>({ type: '', msg: '' });
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -168,7 +168,7 @@ function AttendanceContent() {
       },
       { enableHighAccuracy: true }
     );
-  }, []);
+  }, [toastError, toastWarning]);
 
   const getLocationName = async (lat: number, lng: number) => {
     try {
@@ -186,27 +186,30 @@ function AttendanceContent() {
   };
 
   // ── Kamera ────────────────────────────────────────────
+  // Kamera dimatikan saat ditutup, saat halaman ditinggalkan, dan juga bila
+  // ditutup sebelum izin kamera selesai diproses.
   useEffect(() => {
-    if (isCameraOpen) startCamera(); else stopCamera();
-    return () => stopCamera();
-  }, [isCameraOpen]);
+    if (!isCameraOpen) return;
+    let cancelled = false;
 
-  const startCamera = async () => {
-    try {
-      const ms = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } }
-      });
-      setStream(ms);
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } }
+    }).then((ms) => {
+      if (cancelled) { ms.getTracks().forEach(t => t.stop()); return; }
+      streamRef.current = ms;
       if (videoRef.current) videoRef.current.srcObject = ms;
-    } catch {
+    }).catch(() => {
+      if (cancelled) return;
       toastError("Kamera Tidak Bisa Dibuka", "Pastikan izin kamera sudah diberikan di browser.", <Camera size={16} />);
       setIsCameraOpen(false);
-    }
-  };
+    });
 
-  const stopCamera = () => {
-    if (stream) { stream.getTracks().forEach(t => t.stop()); setStream(null); }
-  };
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    };
+  }, [isCameraOpen, toastError]);
 
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -263,62 +266,41 @@ function AttendanceContent() {
       });
       setShowSuccessAnimation(true);
 
-    } catch (err: any) {
-      const detail: string = err.response?.data?.detail || "";
+    } catch (err) {
+      const detail = getErrorDetail(err);
       setStatus({ type: 'error', msg: detail });
 
-      // Kategorikan error → tampilkan toast yang relevan
-      if (!err.response && err.request) {
-        toastError(
-          "Koneksi Gagal",
-          "Server tidak merespons. Periksa koneksi internet kamu.",
-          <WifiOff size={16} />
-        );
-      } else if (detail.toLowerCase().includes("lokasi") || detail.toLowerCase().includes("jarak")) {
-        toastError(
-          "Lokasi Tidak Valid",
-          detail,
-          <MapPinOff size={16} />
-        );
-      } else if (
-        detail.toLowerCase().includes("wajah") ||
-        detail.toLowerCase().includes("tidak dikenali") ||
-        detail.toLowerCase().includes("tidak cocok")
-      ) {
-        toastError(
-          "Wajah Tidak Dikenali",
-          detail || "Pastikan wajah terlihat jelas dan pencahayaan cukup.",
-          <UserX size={16} />
-        );
-      } else if (detail.toLowerCase().includes("belum terdaftar")) {
-        toastError(
-          "Wajah Belum Didaftarkan",
-          "Hubungi admin untuk mendaftarkan data wajah kamu.",
-          <ShieldAlert size={16} />
-        );
-      } else if (detail.toLowerCase().includes("sudah")) {
-        toastWarning(
-          "Sudah Absen",
-          detail || "Kamu sudah melakukan absensi hari ini.",
-          <CheckCircle2 size={16} />
-        );
-      } else if (
-        detail.toLowerCase().includes("belum dibuka") ||
-        detail.toLowerCase().includes("ditutup") ||
-        detail.toLowerCase().includes("jam") ||
-        detail.toLowerCase().includes("waktu")
-      ) {
-        toastWarning(
-          "Di Luar Jam Absensi",
-          detail,
-          <Clock size={16} />
-        );
+      // Pilih pesan berdasarkan `code` dari backend, bukan menebak dari isi teks
+      if (isNetworkError(err)) {
+        toastError("Koneksi Gagal", "Server tidak merespons. Periksa koneksi internet kamu.", <WifiOff size={16} />);
       } else {
-        toastError(
-          "Absensi Gagal",
-          detail || "Terjadi kesalahan. Silakan coba lagi.",
-          <AlertCircle size={16} />
-        );
+        switch (getErrorCode(err)) {
+          case "OUT_OF_RANGE":
+            toastError("Lokasi Tidak Valid", detail, <MapPinOff size={16} />);
+            break;
+          case "FACE_NOT_DETECTED":
+            toastError("Wajah Tidak Terdeteksi", "Pastikan wajah terlihat jelas dan pencahayaan cukup.", <UserX size={16} />);
+            break;
+          case "FACE_MISMATCH":
+            toastError("Wajah Tidak Dikenali", detail, <UserX size={16} />);
+            break;
+          case "FACE_NOT_ENROLLED":
+          case "FACE_REENROLL_REQUIRED":
+            toastError("Wajah Belum Didaftarkan", detail || "Hubungi admin untuk mendaftarkan data wajah kamu.", <ShieldAlert size={16} />);
+            break;
+          case "ALREADY_CHECKED_IN":
+          case "ALREADY_CHECKED_OUT":
+            toastWarning("Sudah Absen", detail, <CheckCircle2 size={16} />);
+            break;
+          case "NOT_CHECKED_IN":
+            toastWarning("Belum Check-in", detail, <AlertTriangle size={16} />);
+            break;
+          case "OUTSIDE_HOURS":
+            toastWarning("Di Luar Jam Absensi", detail, <Clock size={16} />);
+            break;
+          default:
+            toastError("Absensi Gagal", detail || "Terjadi kesalahan. Silakan coba lagi.", <AlertCircle size={16} />);
+        }
       }
     } finally {
       setLoading(false);

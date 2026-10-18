@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { getErrorDetail } from "@/lib/errors";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
 import {
   ArrowLeft, ScanFace, Trash2, Upload,
-  CheckCircle2, XCircle, AlertCircle, Pencil, Camera, X
+  CheckCircle2, XCircle, AlertCircle, Pencil, X
 } from "lucide-react";
 
 interface UserData {
@@ -71,8 +72,8 @@ function UserDetailContent() {
       setPreview(null);
       setSelectedFile(null);
       await fetchUser();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Gagal mendaftarkan wajah.");
+    } catch (err) {
+      setError(getErrorDetail(err, "Gagal mendaftarkan wajah."));
     } finally {
       setEnrolling(false);
     }
@@ -85,8 +86,8 @@ function UserDetailContent() {
       await api.delete(`/users/${userId}/enroll-face`);
       setSuccessMsg("Data wajah berhasil dihapus.");
       await fetchUser();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Gagal menghapus wajah.");
+    } catch (err) {
+      setError(getErrorDetail(err, "Gagal menghapus wajah."));
     } finally {
       setRemoving(false);
     }

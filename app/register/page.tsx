@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getErrorDetail } from "@/lib/errors";
 import { api } from "@/lib/api";
 import {
   Lock, Eye, EyeOff, AlertCircle, CheckCircle2,
-  ScanFace, MapPin, User, AtSign, CreditCard, ArrowLeft, Check
+  ScanFace, User, AtSign, CreditCard, ArrowLeft, Check
 } from "lucide-react";
 import Link from "next/link";
 
@@ -45,8 +46,8 @@ export default function RegisterPage() {
       });
       setSuccess(true);
       setTimeout(() => router.push("/login"), 2500);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Registrasi gagal.");
+    } catch (err) {
+      setError(getErrorDetail(err, "Registrasi gagal."));
     } finally {
       setLoading(false);
     }

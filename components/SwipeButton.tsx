@@ -27,7 +27,7 @@ export default function SwipeButton({ onComplete, text, icon, disabled = false }
     }
   }, [isCompleted, onComplete]);
 
-  const handleStart = (clientX: number) => {
+  const handleStart = () => {
     if (disabled || isCompleted) return;
     setIsDragging(true);
   };
@@ -66,28 +66,12 @@ export default function SwipeButton({ onComplete, text, icon, disabled = false }
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
-    handleStart(e.clientX);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    handleMove(e.clientX);
-  };
-
-  const handleMouseUp = () => {
-    handleEnd();
+    handleStart();
   };
 
   // Touch events
-  const handleTouchStart = (e: React.TouchEvent) => {
-    handleStart(e.touches[0].clientX);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    handleMove(e.touches[0].clientX);
-  };
-
-  const handleTouchEnd = () => {
-    handleEnd();
+  const handleTouchStart = () => {
+    handleStart();
   };
 
   // Global mouse/touch listeners

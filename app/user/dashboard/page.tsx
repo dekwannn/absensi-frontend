@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import {
-  LogOut, Clock, Bell, ArrowRight,
-  CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp, CalendarDays,
+  LogOut, Bell, ArrowRight,
+  CheckCircle2, AlertTriangle, XCircle, CalendarDays,
   LogIn, LogOut as LogOutIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -78,7 +78,6 @@ function UserDashboardContent() {
   const [schedule, setSchedule]     = useState<Schedule | null>(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
-  const [showSchedule, setShowSchedule]     = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
 
   // ── Bangun 7 hari (tanggal WITA) ──────────────────────
@@ -116,7 +115,9 @@ function UserDashboardContent() {
   const fetchHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await api.get("/attendance/my-history");
+      // 5 record terbaru sudah mencakup semua tanggal di strip (3 hari lalu s.d. hari ini)
+      // sekaligus daftar "Riwayat Absensi"
+      const res = await api.get("/attendance/my-history", { params: { limit: 5 } });
       setAllHistory(res.data.data || []);
     } catch { /* silent */ }
     finally { setHistoryLoading(false); }

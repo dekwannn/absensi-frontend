@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { getErrorDetail } from "@/lib/errors";
 import { api } from "@/lib/api";
 import AuthGuard from "@/components/AuthGuard";
 import {
@@ -63,7 +64,7 @@ function EditUserContent() {
 
     setSaving(true);
     try {
-      const payload: any = {
+      const payload: Record<string, string | boolean | undefined> = {
         name: form.name,
         email: form.email || undefined,
         nik: form.nik || undefined,
@@ -75,8 +76,8 @@ function EditUserContent() {
       await api.put(`/users/${userId}`, payload);
       setSuccess(true);
       setTimeout(() => router.push("/admin/users"), 1500);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Gagal menyimpan perubahan.");
+    } catch (err) {
+      setError(getErrorDetail(err, "Gagal menyimpan perubahan."));
     } finally {
       setSaving(false);
     }
